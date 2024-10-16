@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Drive File Manager</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" rel="stylesheet">
+  </head>
+  <body class="bg-gray-100">
+    <div class="container mx-auto px-4 py-8">
+      <h1 class="text-3xl font-bold mb-6 text-center">Google Drive File Manager</h1>
+      
+      <div class="mb-4 flex justify-between items-center">
+        <div class="flex-1 mr-4">
+          <input type="text" id="searchInput" placeholder="Search files..." class="w-full p-2 border rounded">
+        </div>
+        <button onclick="searchFiles()" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Search</button>
+        <select id="itemsPerPage" onchange="changeItemsPerPage()" class="ml-4 p-2 border rounded">
+          <option value="30">30 per page</option>
+          <option value="50">50 per page</option>
+          <option value="100">100 per page</option>
+        </select>
+      </div>
+      
+      <div class="overflow-x-auto bg-white shadow-md rounded">
+        <table class="min-w-full table-auto">
+  <thead class="bg-gray-200">
+    <tr>
+      <th class="px-4 py-2 text-left">File Name</th>
+      <th class="px-4 py-2 text-left">Full Path</th>
+      <th class="px-4 py-2 text-left">Last Updated</th>
+      <th class="px-4 py-2 text-left">Size</th>
+      <th class="px-4 py-2 text-left">Actions</th>
+    </tr>
+  </thead>
+  <tbody id="fileDetailsTable"></tbody>
+</table>
+
+      </div>
+      
+      <div id="pagination" class="mt-4 flex justify-center items-center"></div>
+      
+      <div class="mt-4 text-center">
+        <button onclick="exportToCSV()" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">
+          Export to CSV
+        </button>
+      </div>
+    </div>
+    
+    <script>
+      var currentPage = 1;
+      var itemsPerPage = 30;
+      var searchTerm = '';
+
+  function loadPage(page) {
+    google.script.run
+      .withSuccessHandler(function(response) {
+        try {
+          var result = JSON.parse(response);
+          console.log('Parsed backend result:', result); // Log the parsed object
+
+          if (result && result.files) { // Check if 'files' property exists
+            displayFiles(result.files);
+            updatePagination(result.currentPage, result.totalPages, result.totalFiles);
+          } else {
+            console.warn('No files found or invalid result format:', result);
+            displayFiles([]);  // Display "No files found"
+          }
+        } catch (e) {
+          console.error('Error parsing JSON:', e, 'Original response:', response);
+          alert('Error loading files: Invalid data received from the server.');
+        }
+      })
+      .withFailureHandler(function(error) {
+        console.error('Server error:', error);
+        alert('Error loading files: A server error occurred.');
+      })
+      .getDriveUpdates(page, itemsPerPage, searchTerm);
+  }
+function testDriveUpdates() {
+  var response = getDriveUpdates(1, 30, '');
+  Logger.log('Test response: ' + JSON.stringify(response));
+}
+
+
+// Trigger a search
+function searchFiles() {
+  searchTerm = document.getElementById('searchInput').value.trim();  // Use search term if provided
+  loadPage(1);  // Reload the first page with the search term
+}
+
+// Load the first page by default without any search term
+loadPage(1);
+
+
+    
+function displayFiles(files) {
+  const tableBody = document.getElementById('fileDetailsTable');
+  tableBody.innerHTML = ''; // ล้างข้อมูลเก่า
+
+  if (files.length === 0) {
+    tableBody.innerHTML = '<tr><td colspan="5">No files found</td></tr>';
+    return;
+  }
+
+  files.forEach(file => {
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td>${file.name}</td>
+      <td>${file.fullPath}</td>
+      <td>${new Date(file.lastUpdated).toLocaleString()}</td>
+      <td>${formatFileSize(file.size)}</td>
+      <td><a href="${file.webViewLink}" target="_blank">Open</a></td>
+    `;
+    tableBody.appendChild(row);
+  });
+}
+
+
+function updatePagination(currentPage, totalPages, totalFiles) {
+  var paginationDiv = document.getElementById('pagination');
+  paginationDiv.innerHTML = '';
+        
+  if (currentPage > 1) {
+    paginationDiv.appendChild(createPaginationButton('Previous', currentPage - 1));
+  }
+        
+  var startPage = Math.max(1, currentPage - 2);
+  var endPage = Math.min(totalPages, currentPage + 2);
+        
+  for (var i = startPage; i <= endPage; i++) {
+    paginationDiv.appendChild(createPaginationButton(i, i, i === currentPage));
+  }
+        
+  if (currentPage < totalPages) {
+    paginationDiv.appendChild(createPaginationButton('Next', currentPage + 1));
+  }
+        
+  var pageInfo = document.createElement('span');
+  pageInfo.className = 'ml-4';
+  pageInfo.innerText = `Page ${currentPage} of ${totalPages} (Total files: ${totalFiles})`;
+  paginationDiv.appendChild(pageInfo);
+  }
+      
+function createPaginationButton(text, page, isActive = false) {
+  var button = document.createElement('button');
+  button.innerText = text;
+  button.className = `mx-1 px-3 py-1 rounded ${isActive ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`;
+        button.onclick = function() { loadPage(page); };
+        return button;
+      }
+      
+function searchFiles() {
+  searchTerm = document.getElementById('searchInput').value;
+  loadPage(1);
+}
+      
+function changeItemsPerPage() {
+  itemsPerPage = parseInt(document.getElementById('itemsPerPage').value);
+  loadPage(1);
+}
+      
+function exportToCSV() {
+  google.script.run.withSuccessHandler(function(csvContent) {
+    var blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    var link = document.createElement("a");
+    if (link.download !== undefined) {
+      var url = URL.createObjectURL(blob);
+      link.setAttribute("href", url);
+      link.setAttribute("download", "drive_files.csv");
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  }).getCSVData();
+}
+
+      
+function getFileIcon(mimeType) {
+  const iconMap = {
+    'application/vnd.google-apps.folder': '<i class="fas fa-folder text-yellow-400"></i>',
+    'application/pdf': '<i class="fas fa-file-pdf text-red-500"></i>',
+    'image/jpeg': '<i class="fas fa-file-image text-green-500"></i>',
+    'image/png': '<i class="fas fa-file-image text-green-500"></i>',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '<i class="fas fa-file-word text-blue-500"></i>',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '<i class="fas fa-file-excel text-green-600"></i>',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation': '<i class="fas fa-file-powerpoint text-orange-500"></i>',
+  };
+  return iconMap[mimeType] || '<i class="fas fa-file text-gray-500"></i>';
+}
+      
+function formatFileSize(bytes) {
+   if(bytes < 1024) return bytes + " bytes";
+   else if(bytes < 1048576) return(bytes / 1024).toFixed(2) + " KB";
+   else if(bytes < 1073741824) return(bytes / 1048576).toFixed(2) + " MB";
+   else return(bytes / 1073741824).toFixed(2) + " GB";
+}
+      
+      // โหลดหน้าแรกเมื่อโหลดเพจ
+     loadPage(currentPage);
+    </script>
+  </body>
+</html>
