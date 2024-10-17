@@ -1,4 +1,4 @@
-var folderId = '...'; // Your Folder ID
+var folderId = '....'; // Your Folder ID
 
 //Make CSV File
 function getCSVData() {
@@ -6,12 +6,14 @@ function getCSVData() {
   var allFiles = getAllFilesFromFolderAndSubfolders(folder, folder.getName());
 
   // Create CSV content
-  var csvContent = "File Name,Full Path,Last Updated,Size\n";
+  var csvContent = "File Name,Full Path,Last Updated,Owner name,Owner,Size\n";
   allFiles.forEach(function(file) {
     csvContent += [
       file.name,
       file.fullPath,
       new Date(file.lastUpdated).toLocaleString(),
+      file.ownername,
+      file.owner,  // Add the owner to the CSV
       file.size
     ].join(",") + "\n";
   });
@@ -28,7 +30,6 @@ function doGet() {
 
 // get file function from google drive folder and subfolder
 function getDriveUpdates(page = 1, itemsPerPage = 30, searchTerm = '') {
-  //var folderId = '1mpqTcJNTbLOdaoyLjOTWrdS5lnJ7UvHJ';
   var folder = DriveApp.getFolderById(folderId);
 
   if (!folder) {
@@ -81,6 +82,8 @@ function getAllFilesFromFolderAndSubfolders(folder, parentPath) {
       //fullPath: parentPath + "/" + file.getName(), // Track full path
       fullPath: parentPath , // Track full path
       lastUpdated: file.getLastUpdated(),
+      ownername: file.getOwner().getName(),
+      owner: file.getOwner().getEmail(),
       size: file.getSize(),
       webViewLink: file.getUrl()
     });
@@ -99,7 +102,6 @@ function getAllFilesFromFolderAndSubfolders(folder, parentPath) {
 
 //debug
 function testGetFiles(folderId) {
-  //--var folderId = '1mpqTcJNTbLOdaoyLjOTWrdS5lnJ7UvHJ'; // ใส่ Folder ID ของคุณ
   var folder = DriveApp.getFolderById(folderId);
 
   if (!folder) {
@@ -124,6 +126,58 @@ function testGetFiles(folderId) {
 
   Logger.log("Files: " + JSON.stringify(fileData));
   return fileData;
+}
+
+// ฟังก์ชันเพื่อเช็คการเปลี่ยนแปลงใน Drive และส่งอีเมลแจ้งเตือน (ฟังก์ชันเดิม)
+function checkDriveChanges() {
+  var folder = DriveApp.getFolderById(folderId);
+  
+  // ดึงข้อมูลไฟล์ทั้งหมดจากโฟลเดอร์หลักและโฟลเดอร์ย่อยทั้งหมด
+  var fileData = getAllFilesFromFolderAndSubfolders(folder, folder.getName());
+  
+  // แปลงชื่อไฟล์และโฟลเดอร์เป็น array ของชื่อไฟล์ทั้งหมดเพื่อใช้งานในการเปรียบเทียบ
+  var fileNames = fileData.map(function(file) {
+    return file.name;
+  });
+
+  // เก็บข้อมูลไฟล์ก่อนหน้านี้ใน User Properties
+  var userProperties = PropertiesService.getUserProperties();
+  var previousFiles = userProperties.getProperty('fileNames');
+
+  // ถ้ายังไม่มีการเก็บข้อมูลไฟล์ ให้เก็บข้อมูลปัจจุบัน
+  if (!previousFiles) {
+    userProperties.setProperty('fileNames', fileNames.join(','));
+    return;
+  }
+
+  var previousFileArray = previousFiles.split(',');
+
+  // ตรวจสอบว่ามีการเพิ่มหรือลบไฟล์หรือไม่
+  var newFiles = fileData.filter(file => !previousFileArray.includes(file.name));
+  var removedFiles = previousFileArray.filter(fileName => !fileNames.includes(fileName));
+
+  // สร้างข้อความแจ้งเตือน
+  var message = '';
+
+  if (newFiles.length > 0) {
+    message += 'New files added:\n';
+    newFiles.forEach(function(file) {
+      message += 'Folder: ' + file.fullPath + ' - File: ' + file.name + '\n'+ 'File owner:' + file.ownername + '\n' + file.owner;
+    });
+    message += '\n';
+  }
+
+  if (removedFiles.length > 0) {
+    message += 'Files removed:\n' + removedFiles.join('\n');
+  }
+
+  // ถ้ามีการเพิ่มหรือลบไฟล์ ส่งอีเมลแจ้งเตือน
+  if (message !== '') {
+    MailApp.sendEmail('email1@gmail.com, email2@gmail.com', 'Google Drive Update', message);
+  }
+
+  // อัปเดตข้อมูลไฟล์ใน User Properties
+  userProperties.setProperty('fileNames', fileNames.join(','));
 }
 
 function testGetDriveUpdates(page, itemsPerPage, searchTerm) {
