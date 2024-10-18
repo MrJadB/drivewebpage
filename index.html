@@ -10,6 +10,7 @@
   </head>
   <body class="bg-gray-100">
     <div class="container mx-auto px-4 py-8">
+      <title>Google Drive File Manager</title>
       <h1 id="folderName" class="text-3xl font-bold mb-6 text-center">Google Drive File Manager</h1>
 
       <!-- Add a dropdown for folder selection -->
@@ -131,8 +132,18 @@
       }
 
       function exportToCSV() {
-  var folderId = document.getElementById('folderSelect').value; // Get the selected folder ID
-  var foldername = document.getElementById('folderSelect').name;
+  var folderSelect = document.getElementById('folderSelect');
+  var folderId = folderSelect.value; // Get the selected folder ID
+  var folderName = folderSelect.options[folderSelect.selectedIndex].text; // Get the selected folder name
+
+  // Get the current date
+  var today = new Date();
+  var dateStr = today.getFullYear() + '-' +
+                String(today.getMonth() + 1).padStart(2, '0') + '-' + 
+                String(today.getDate()).padStart(2, '0');
+
+  // Format file name: folderName_YYYY-MM-DD.csv
+  var fileName = folderName.replace(/\s+/g, '_') + '_' + dateStr + '.csv';
 
   google.script.run
     .withSuccessHandler(function(csvContent) {
@@ -141,7 +152,7 @@
       if (link.download !== undefined) {
         var url = URL.createObjectURL(blob);
         link.setAttribute("href", url);
-        link.setAttribute("download", "drive_files.csv");
+        link.setAttribute("download", fileName+"_drivefile.csv"); // Use the dynamic file name
         link.style.visibility = 'hidden';
         document.body.appendChild(link);
         link.click();
@@ -150,6 +161,7 @@
     })
     .getCSVData(folderId);  // Pass the selected folderId to the server-side function
 }
+
 
 
       // Helper function to display files
@@ -171,7 +183,7 @@
             <td>${file.owner}</td>
             <td>${new Date(file.lastUpdated).toLocaleString()}</td>
             <td>${formatFileSize(file.size)}</td>
-            <td><a href="${file.webViewLink}" target="_blank">Open</a></td>
+            <td><button class="bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600" onclick="window.open('${file.webViewLink}', '_blank')">Open</button></td>
           `;
           tableBody.appendChild(row);
         });
