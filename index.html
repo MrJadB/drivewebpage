@@ -1,201 +1,237 @@
-var folderId = '1mpqTcJNTbLOdaoyLjOTWrdS5lnJ7UvHJ'; // Your Folder ID
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Drive File Manager</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" rel="stylesheet">
+  </head>
+  <body class="bg-gray-100">
+    <div class="container mx-auto px-4 py-8">
+      <h1 id="folderName" class="text-3xl font-bold mb-6 text-center">Google Drive File Manager</h1>
 
-//Make CSV File
-function getCSVData() {
-  var folder = DriveApp.getFolderById(folderId);
-  var allFiles = getAllFilesFromFolderAndSubfolders(folder, folder.getName());
+      <!-- Add a dropdown for folder selection -->
+      <div class="mb-4 flex justify-between items-center">
+        <label for="folderSelect" class="font-bold">Select Folder:</label>
+        <select id="folderSelect" onchange="changeFolder()" class="ml-4 p-2 border rounded">
+          <!-- Folders will be dynamically added here -->
+        </select>
+      </div>
+      
+      <div class="mb-4 flex justify-between items-center">
+        <div class="flex-1 mr-4">
+          <input type="text" id="searchInput" placeholder="Search files..." class="w-full p-2 border rounded">
+        </div>
+        <button onclick="searchFiles()" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Search</button>
+        <select id="itemsPerPage" onchange="changeItemsPerPage()" class="ml-4 p-2 border rounded">
+          <option value="30">30 per page</option>
+          <option value="50">50 per page</option>
+          <option value="100">100 per page</option>
+        </select>
+      </div>
+      
+      <div class="overflow-x-auto bg-white shadow-md rounded">
+        <table class="min-w-full table-auto">
+          <thead class="bg-gray-200">
+            <tr>
+              <th class="px-4 py-2 text-left">File Name</th>
+              <th class="px-4 py-2 text-left">Full Path</th>
+              <th class="px-4 py-2 text-left">Owner Name</th>
+              <th class="px-4 py-2 text-left">Owner Email</th>
+              <th class="px-4 py-2 text-left">Last Updated</th>
+              <th class="px-4 py-2 text-left">Size</th>
+              <th class="px-4 py-2 text-left">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="fileDetailsTable"></tbody>
+        </table>
+      </div>
+      
+      <div id="pagination" class="mt-4 flex justify-center items-center"></div>
+      
+      <div class="mt-4 text-center">
+        <button onclick="exportToCSV()" class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600">
+          Export to CSV
+        </button>
+      </div>
+    </div>
+    
+    <script>
+      var currentPage = 1;
+      var itemsPerPage = 30;
+      var searchTerm = '';
+      var selectedFolderId = ''; // This will hold the selected folder's ID
 
-  // Create CSV content
-  var csvContent = "File Name,Full Path,Last Updated,Owner name,Owner,Size\n";
-  allFiles.forEach(function(file) {
-    csvContent += [
-      file.name,
-      file.fullPath,
-      new Date(file.lastUpdated).toLocaleString(),
-      file.ownername,
-      file.owner,  // Add the owner to the CSV
-      file.size
-    ].join(",") + "\n";
-  });
+      // Fetch the folders and populate the dropdown
+      function loadFolders() {
+        google.script.run.withSuccessHandler(function(folders) {
+          var folderSelect = document.getElementById('folderSelect');
+          folderSelect.innerHTML = ''; // Clear previous options
 
-  return csvContent;
+          folders.forEach(function(folder) {
+            var option = document.createElement('option');
+            option.value = folder.id;
+            option.textContent = folder.name;
+            folderSelect.appendChild(option);
+          });
+
+          // Set the first folder as the selected folder and load its files
+          if (folders.length > 0) {
+            selectedFolderId = folders[0].id;
+            loadPage(1);
+          }
+        }).getAvailableFolders(); // Call the function to get folders
+      }
+
+      // Load the files from the selected folder
+      function loadPage(page) {
+        google.script.run
+          .withSuccessHandler(function(response) {
+            try {
+              var result = JSON.parse(response);
+              console.log('Parsed backend result:', result); // Log the parsed object
+
+              if (result && result.files) { // Check if 'files' property exists
+                displayFiles(result.files); // Call displayFiles to display the files
+                updatePagination(result.currentPage, result.totalPages, result.totalFiles);
+                document.getElementById('folderName').textContent = result.folderName || 'Google Drive File Manager'; // Set the folder name
+              } else {
+                console.warn('No files found or invalid result format:', result);
+                displayFiles([]);  // Display "No files found"
+              }
+            } catch (e) {
+              console.error('Error parsing JSON:', e, 'Original response:', response);
+              alert('Error loading files: Invalid data received from the server.');
+            }
+          })
+          .withFailureHandler(function(error) {
+            console.error('Server error:', error);
+            alert('Error loading files: A server error occurred.');
+          })
+          .getDriveUpdates(page, itemsPerPage, searchTerm, selectedFolderId); // Send folderId as an argument
+      }
+
+      // Trigger a search
+      function searchFiles() {
+        searchTerm = document.getElementById('searchInput').value.trim();  // Use search term if provided
+        loadPage(1);  // Reload the first page with the search term
+      }
+
+      // Change folder when the dropdown selection changes
+      function changeFolder() {
+        selectedFolderId = document.getElementById('folderSelect').value; // Get the selected folder ID
+        loadPage(1);  // Reload files for the selected folder
+      }
+
+      function changeItemsPerPage() {
+        itemsPerPage = parseInt(document.getElementById('itemsPerPage').value);
+        loadPage(1);
+      }
+
+      function exportToCSV() {
+  var folderId = document.getElementById('folderSelect').value; // Get the selected folder ID
+  var foldername = document.getElementById('folderSelect').name;
+
+  google.script.run
+    .withSuccessHandler(function(csvContent) {
+      var blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      var link = document.createElement("a");
+      if (link.download !== undefined) {
+        var url = URL.createObjectURL(blob);
+        link.setAttribute("href", url);
+        link.setAttribute("download", "drive_files.csv");
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+    })
+    .getCSVData(folderId);  // Pass the selected folderId to the server-side function
 }
 
-//Get all data
-function doGet() {
-  return HtmlService.createHtmlOutputFromFile('index')
-      .setTitle('Google Drive File Manager')
-      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
-}
 
-// get file function from google drive folder and subfolder
-function getDriveUpdates(page = 1, itemsPerPage = 30, searchTerm = '') {
-  var folder = DriveApp.getFolderById(folderId);
+      // Helper function to display files
+      function displayFiles(files) {
+        const tableBody = document.getElementById('fileDetailsTable');
+        tableBody.innerHTML = ''; // Clear previous data
 
-  if (!folder) {
-    Logger.log('Folder not found or inaccessible.');
-    return ContentService.createTextOutput(JSON.stringify({ files: [], folderName: '' }))
-                         .setMimeType(ContentService.MimeType.JSON);
-  }
+        if (files.length === 0) {
+          tableBody.innerHTML = '<tr><td colspan="7">No files found</td></tr>';
+          return;
+        }
 
-  var folderName = folder.getName();  // Get folder name
-  var allFiles = getAllFilesFromFolderAndSubfolders(folder, folder.getName());
-  var filteredFiles = allFiles;
+        files.forEach(file => {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td>${file.name}</td>
+            <td>${file.fullPath}</td>
+            <td>${file.ownername}</td>
+            <td>${file.owner}</td>
+            <td>${new Date(file.lastUpdated).toLocaleString()}</td>
+            <td>${formatFileSize(file.size)}</td>
+            <td><a href="${file.webViewLink}" target="_blank">Open</a></td>
+          `;
+          tableBody.appendChild(row);
+        });
+      }
 
-  if (searchTerm) {
-    filteredFiles = allFiles.filter(file =>
-      file.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }
+      // Helper function to format file size
+      function formatFileSize(bytes) {
+        if (bytes < 1024) return bytes + " bytes";
+        else if (bytes < 1048576) return (bytes / 1024).toFixed(2) + " KB";
+        else if (bytes < 1073741824) return (bytes / 1048576).toFixed(2) + " MB";
+        else return (bytes / 1073741824).toFixed(2) + " GB";
+      }
 
-  var startIndex = (page - 1) * itemsPerPage;
-  var paginatedFiles = filteredFiles.slice(startIndex, startIndex + itemsPerPage);
+      // Pagination helper
+      function updatePagination(currentPage, totalPages, totalFiles) {
+        var paginationDiv = document.getElementById('pagination');
+        paginationDiv.innerHTML = ''; // Clear the previous pagination controls
 
-  var result = {
-    files: paginatedFiles,
-    currentPage: page,
-    totalPages: Math.ceil(filteredFiles.length / itemsPerPage),
-    totalFiles: filteredFiles.length,
-    folderName: folderName  // Return the folder name to the frontend
-  };
+        // Add 'Previous' button if applicable
+        if (currentPage > 1) {
+          var prevButton = document.createElement('button');
+          prevButton.textContent = 'Previous';
+          prevButton.className = 'bg-gray-200 text-gray-700 mx-1 px-3 py-1 rounded';
+          prevButton.onclick = function() {
+            loadPage(currentPage - 1);
+          };
+          paginationDiv.appendChild(prevButton);
+        }
 
-  Logger.log('Returning result: ' + JSON.stringify(result));
-  return JSON.stringify(result);
-}
+        // Add page numbers around the current page
+        for (var i = Math.max(1, currentPage - 2); i <= Math.min(totalPages, currentPage + 2); i++) {
+          var pageButton = document.createElement('button');
+          pageButton.textContent = i;
+          pageButton.className = (i === currentPage) ? 'bg-blue-500 text-white mx-1 px-3 py-1 rounded' : 'bg-gray-200 text-gray-700 mx-1 px-3 py-1 rounded';
+          pageButton.onclick = function() {
+            loadPage(i);
+          };
+          paginationDiv.appendChild(pageButton);
+        }
 
+        // Add 'Next' button if applicable
+        if (currentPage < totalPages) {
+          var nextButton = document.createElement('button');
+          nextButton.textContent = 'Next';
+          nextButton.className = 'bg-gray-200 text-gray-700 mx-1 px-3 py-1 rounded';
+          nextButton.onclick = function() {
+            loadPage(currentPage + 1);
+          };
+          paginationDiv.appendChild(nextButton);
+        }
 
+        // Display total files and current page info
+        var pageInfo = document.createElement('span');
+        pageInfo.className = 'ml-4';
+        pageInfo.textContent = `Page ${currentPage} of ${totalPages} (Total files: ${totalFiles})`;
+        paginationDiv.appendChild(pageInfo);
+      }
 
-
-
-// ฟังก์ชันช่วยในการดึงไฟล์จากโฟลเดอร์และโฟลเดอร์ย่อย
-//pull file function from folder and subfolder
-function getAllFilesFromFolderAndSubfolders(folder, parentPath) {
-  if (!folder) {
-    throw new Error("Folder is undefined or not accessible.");
-  }
-
-  var files = [];
-  var fileIterator = folder.getFiles();
-
-  while (fileIterator.hasNext()) {
-    var file = fileIterator.next();
-    files.push({
-      name: file.getName(),
-      //fullPath: parentPath + "/" + file.getName(), // Track full path
-      fullPath: parentPath , // Track full path
-      lastUpdated: file.getLastUpdated(),
-      ownername: file.getOwner().getName(),
-      owner: file.getOwner().getEmail(),
-      size: file.getSize(),
-      webViewLink: file.getUrl()
-    });
-  }
-
-  var subfolders = folder.getFolders();
-  while (subfolders.hasNext()) {
-    var subfolder = subfolders.next();
-    var subfolderPath = parentPath + "/" + subfolder.getName();
-    var subfolderFiles = getAllFilesFromFolderAndSubfolders(subfolder, subfolderPath);
-    files = files.concat(subfolderFiles);
-  }
-
-  return files;
-}
-
-//debug
-function testGetFiles(folderId) {
-  var folder = DriveApp.getFolderById(folderId);
-
-  if (!folder) {
-    throw new Error("Folder is undefined or not accessible.");
-  }
-
-  Logger.log("Folder found: " + folder.getName());
-
-  var files = folder.getFiles();
-  var fileData = [];
-
-  while (files.hasNext()) {
-    var file = files.next();
-    fileData.push({
-      id: file.getId(),
-      name: file.getName(),
-      mimeType: file.getMimeType(),
-      lastUpdated: file.getLastUpdated(),
-      fileSize: file.getSize(),
-    });
-  }
-
-  Logger.log("Files: " + JSON.stringify(fileData));
-  return fileData;
-}
-
-// ฟังก์ชันเพื่อเช็คการเปลี่ยนแปลงใน Drive และส่งอีเมลแจ้งเตือน (ฟังก์ชันเดิม)
-function checkDriveChanges() {
-  var folder = DriveApp.getFolderById(folderId);
-  
-  // ดึงข้อมูลไฟล์ทั้งหมดจากโฟลเดอร์หลักและโฟลเดอร์ย่อยทั้งหมด
-  var fileData = getAllFilesFromFolderAndSubfolders(folder, folder.getName());
-  
-  // แปลงชื่อไฟล์และโฟลเดอร์เป็น array ของชื่อไฟล์ทั้งหมดเพื่อใช้งานในการเปรียบเทียบ
-  var fileNames = fileData.map(function(file) {
-    return file.name;
-  });
-
-  // เก็บข้อมูลไฟล์ก่อนหน้านี้ใน User Properties
-  var userProperties = PropertiesService.getUserProperties();
-  var previousFiles = userProperties.getProperty('fileNames');
-
-  // ถ้ายังไม่มีการเก็บข้อมูลไฟล์ ให้เก็บข้อมูลปัจจุบัน
-  if (!previousFiles) {
-    userProperties.setProperty('fileNames', fileNames.join(','));
-    return;
-  }
-
-  var previousFileArray = previousFiles.split(',');
-
-  // ตรวจสอบว่ามีการเพิ่มหรือลบไฟล์หรือไม่
-  var newFiles = fileData.filter(file => !previousFileArray.includes(file.name));
-  var removedFiles = previousFileArray.filter(fileName => !fileNames.includes(fileName));
-
-  // สร้างข้อความแจ้งเตือน
-  var message = '';
-
-  if (newFiles.length > 0) {
-    message += 'New files added:\n';
-    newFiles.forEach(function(file) {
-      message += 'Folder: ' + file.fullPath + ' - File: ' + file.name + '\n'+ 'File owner:' + file.ownername + '\n' + file.owner ;
-    });
-    message += '\n';
-  }
-
-  if (removedFiles.length > 0) {
-    message += 'Files removed:\n' + removedFiles.join('\n');
-  }
-
-  // ถ้ามีการเพิ่มหรือลบไฟล์ ส่งอีเมลแจ้งเตือน
-  if (message !== '') {
-    MailApp.sendEmail('act2185014class8@gmail.com, act21850class8@gmail.com', 'Google Drive Update', message);
-  }
-
-  // อัปเดตข้อมูลไฟล์ใน User Properties
-  userProperties.setProperty('fileNames', fileNames.join(','));
-}
-
-function testGetDriveUpdates(page, itemsPerPage, searchTerm) {
-  const files = DriveApp.getFiles();
-  const fileList = [];
-
-  while (files.hasNext()) {
-    const file = files.next();
-    fileList.push({
-      name: file.getName(),
-      id: file.getId(),
-      mimeType: file.getMimeType(),
-      lastUpdated: file.getLastUpdated(),
-      size: file.getSize(),
-    });
-  }
-  Logger.log("Files: " + JSON.stringify(fileList));
-  return JSON.stringify({ files: fileList });
-}
+      // Load folders on page load
+      loadFolders();
+    </script>
+  </body>
+</html>
