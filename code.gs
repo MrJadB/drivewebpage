@@ -1,4 +1,4 @@
-var folderId = '....'; // Your Folder ID
+var folderId = 'Folderkey'; // Your Folder ID
 
 //Make CSV File
 function getCSVData() {
@@ -34,10 +34,11 @@ function getDriveUpdates(page = 1, itemsPerPage = 30, searchTerm = '') {
 
   if (!folder) {
     Logger.log('Folder not found or inaccessible.');
-    return ContentService.createTextOutput(JSON.stringify({ files: [] }))
+    return ContentService.createTextOutput(JSON.stringify({ files: [], folderName: '' }))
                          .setMimeType(ContentService.MimeType.JSON);
   }
 
+  var folderName = folder.getName();  // Get folder name
   var allFiles = getAllFilesFromFolderAndSubfolders(folder, folder.getName());
   var filteredFiles = allFiles;
 
@@ -54,7 +55,8 @@ function getDriveUpdates(page = 1, itemsPerPage = 30, searchTerm = '') {
     files: paginatedFiles,
     currentPage: page,
     totalPages: Math.ceil(filteredFiles.length / itemsPerPage),
-    totalFiles: filteredFiles.length
+    totalFiles: filteredFiles.length,
+    folderName: folderName  // Return the folder name to the frontend
   };
 
   Logger.log('Returning result: ' + JSON.stringify(result));
@@ -120,7 +122,7 @@ function testGetFiles(folderId) {
       name: file.getName(),
       mimeType: file.getMimeType(),
       lastUpdated: file.getLastUpdated(),
-      fileSize: file.getSize()
+      fileSize: file.getSize(),
     });
   }
 
@@ -162,7 +164,7 @@ function checkDriveChanges() {
   if (newFiles.length > 0) {
     message += 'New files added:\n';
     newFiles.forEach(function(file) {
-      message += 'Folder: ' + file.fullPath + ' - File: ' + file.name + '\n'+ 'File owner:' + file.ownername + '\n' + file.owner;
+      message += 'Folder: ' + file.fullPath + ' - File: ' + file.name + '\n'+ 'File owner:' + file.ownername + '\n' + file.owner ;
     });
     message += '\n';
   }
