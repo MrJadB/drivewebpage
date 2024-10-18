@@ -1,25 +1,43 @@
-var folderId = 'Folderkey'; // Your Folder ID
+//var folderId = '....'; // Your Folder ID
+
+// Function to get available folders for the dropdown
+function getAvailableFolders() {
+  var rootFolder = DriveApp.getFolderById('root'); // You can customize this to get any folder
+  var folders = [];
+
+  var folderIterator = rootFolder.getFolders();
+  while (folderIterator.hasNext()) {
+    var folder = folderIterator.next();
+    folders.push({
+      id: folder.getId(),
+      name: folder.getName()
+    });
+  }
+
+  return folders;
+}
 
 //Make CSV File
-function getCSVData() {
-  var folder = DriveApp.getFolderById(folderId);
+function getCSVData(folderId) {
+  var folder = DriveApp.getFolderById(folderId); // Use the folderId passed from the frontend
   var allFiles = getAllFilesFromFolderAndSubfolders(folder, folder.getName());
 
   // Create CSV content
-  var csvContent = "File Name,Full Path,Last Updated,Owner name,Owner,Size\n";
+  var csvContent = "File Name,Full Path,Owner Name,Owner Email,Last Updated,Size\n";
   allFiles.forEach(function(file) {
     csvContent += [
       file.name,
       file.fullPath,
-      new Date(file.lastUpdated).toLocaleString(),
       file.ownername,
-      file.owner,  // Add the owner to the CSV
+      file.owner,
+      new Date(file.lastUpdated).toLocaleString(),
       file.size
     ].join(",") + "\n";
   });
 
   return csvContent;
 }
+
 
 //Get all data
 function doGet() {
@@ -28,10 +46,14 @@ function doGet() {
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
 
-// get file function from google drive folder and subfolder
-function getDriveUpdates(page = 1, itemsPerPage = 30, searchTerm = '') {
-  var folder = DriveApp.getFolderById(folderId);
+// Update getDriveUpdates to accept folderId parameter
+function getDriveUpdates(page = 1, itemsPerPage = 30, searchTerm = '', folderId = '') {
+  var folder = folderId ? DriveApp.getFolderById(folderId) : DriveApp.getFolderById('......'); // Use default folder if none is provided
 
+//Make CSV File
+function getCSVData(folderId) {
+  var folder = DriveApp.getFolderById(folderId); // Use the folderId passed from the frontend
+  var allFiles = getAllFilesFromFolderAndSu
   if (!folder) {
     Logger.log('Folder not found or inaccessible.');
     return ContentService.createTextOutput(JSON.stringify({ files: [], folderName: '' }))
@@ -62,7 +84,6 @@ function getDriveUpdates(page = 1, itemsPerPage = 30, searchTerm = '') {
   Logger.log('Returning result: ' + JSON.stringify(result));
   return JSON.stringify(result);
 }
-
 
 
 
