@@ -1,5 +1,3 @@
-//var folderId = '....'; // Your Folder ID
-
 // Function to get available folders for the dropdown
 function getAvailableFolders() {
   var rootFolder = DriveApp.getFolderById('root'); // You can customize this to get any folder
@@ -48,12 +46,8 @@ function doGet() {
 
 // Update getDriveUpdates to accept folderId parameter
 function getDriveUpdates(page = 1, itemsPerPage = 30, searchTerm = '', folderId = '') {
-  var folder = folderId ? DriveApp.getFolderById(folderId) : DriveApp.getFolderById('......'); // Use default folder if none is provided
+  var folder = folderId ? DriveApp.getFolderById(folderId) : DriveApp.getFolderById('default folder'); // Use default folder if none is provided
 
-//Make CSV File
-function getCSVData(folderId) {
-  var folder = DriveApp.getFolderById(folderId); // Use the folderId passed from the frontend
-  var allFiles = getAllFilesFromFolderAndSu
   if (!folder) {
     Logger.log('Folder not found or inaccessible.');
     return ContentService.createTextOutput(JSON.stringify({ files: [], folderName: '' }))
@@ -108,7 +102,7 @@ function getAllFilesFromFolderAndSubfolders(folder, parentPath) {
       ownername: file.getOwner().getName(),
       owner: file.getOwner().getEmail(),
       size: file.getSize(),
-      webViewLink: file.getUrl()
+       webViewLink: file.getUrl() // Get the file's Google Drive link
     });
   }
 
@@ -217,6 +211,10 @@ function testGetDriveUpdates(page, itemsPerPage, searchTerm) {
       size: file.getSize(),
     });
   }
+  Logger.log("Files: " + JSON.stringify(fileList));
+  return JSON.stringify({ files: fileList });
+}
+
   Logger.log("Files: " + JSON.stringify(fileList));
   return JSON.stringify({ files: fileList });
 }
